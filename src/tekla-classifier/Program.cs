@@ -9,11 +9,6 @@ namespace TeklaClassifier {
 
         public static ClassificationForm ClassificationForm;
 
-        public static string ModelFolderPath = Environment.GetCommandLineArgs()[0];
-
-        /// <summary>
-        /// The main entry point for the application.
-        /// </summary>
         [STAThread]
         static void Main() {
             Application.EnableVisualStyles();

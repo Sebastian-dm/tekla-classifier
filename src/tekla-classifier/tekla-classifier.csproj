@@ -10,6 +10,7 @@
     <PlatformTarget>x64</PlatformTarget>
     <Configurations>Debug;Release</Configurations>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <RootNamespace>TeklaClassifier</RootNamespace>
   </PropertyGroup>
   
   <!-- Per-config conditional compilation + output roots -->

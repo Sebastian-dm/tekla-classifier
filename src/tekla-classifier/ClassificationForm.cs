@@ -29,15 +29,13 @@ namespace TeklaClassifier {
         }
 
         private void SetDefaultPaths() {
-            try {
-                string modelFolder = _model.GetInfo().ModelPath;
-                textBox_PathDatabase.Text = modelFolder + "\\Classification\\database.csv";
-                textBox_PathMapping.Text = modelFolder + "\\Classification\\mapping.csv";
-            }
-            catch (Exception ex) {
-                Output.Error(ex.ToString());
-            }
-            
+            if (!_model.GetConnectionStatus()) return;
+
+            string modelFolder = _model.GetInfo().ModelPath;
+
+            System.IO.Directory.CreateDirectory(modelFolder + "\\Classification");
+            textBox_PathDatabase.Text = modelFolder + "\\Classification\\database.csv";
+            textBox_PathMapping.Text = modelFolder + "\\Classification\\mapping.csv";
         }
 
         private void LockInput() {
