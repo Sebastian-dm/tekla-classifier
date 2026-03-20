@@ -4,11 +4,11 @@ using System.Diagnostics;
 using System.Windows.Forms;
 using Tekla.Structures.Model;
 
-namespace CCI {
+namespace TeklaClassifier {
     internal static class Program {
 
-        public static CCIForm cciForm;
-        public static Model TeklaModel;
+        public static ClassificationForm ClassificationForm;
+
         public static string ModelFolderPath = Environment.GetCommandLineArgs()[0];
 
         /// <summary>
@@ -18,24 +18,10 @@ namespace CCI {
         static void Main() {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            cciForm = new CCIForm(); 
-            ConnectToTekla();
-            Application.Run(cciForm);
 
-        }
+            ClassificationForm = new ClassificationForm(); 
+            Application.Run(ClassificationForm);
 
-        static public void ConnectToTekla() {
-            TeklaModel = new Model();
-
-            try {
-                if (TeklaModel.GetConnectionStatus())
-                    Output.Log("Connected to Tekla successfully");
-                else
-                    Output.Error("Unable to find Tekla");
-            }
-            catch (Exception) {
-                Output.Error("Unable to find Tekla"); ;
-            }
         }
     }
 }

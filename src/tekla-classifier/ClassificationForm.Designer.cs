@@ -1,6 +1,6 @@
-﻿namespace CCI
+﻿namespace TeklaClassifier
 {
-    partial class CCIForm
+    partial class ClassificationForm
     {
         /// <summary>
         /// Required designer variable.

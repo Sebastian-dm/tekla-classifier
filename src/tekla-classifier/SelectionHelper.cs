@@ -5,7 +5,7 @@ using System.Linq;
 using Tekla.Structures.Model;
 using Tekla.Structures.Model.UI;
 
-namespace CCI {
+namespace TeklaClassifier {
     internal class SelectionHelper {
 
         public SelectionHelper() { }
@@ -27,12 +27,12 @@ namespace CCI {
             return selectedParts;
         }
 
-        public List<Part> GetAllParts() {
+        public List<Part> GetAllParts(Model model) {
 
             Type[] Types = new Type[1];
             Types.SetValue(typeof(Part), 0);
 
-            ModelObjectEnumerator moe = Program.TeklaModel.GetModelObjectSelector().GetAllObjectsWithType(Types);
+            ModelObjectEnumerator moe = model.GetModelObjectSelector().GetAllObjectsWithType(Types);
             moe.SelectInstances = true;
 
             Part[] allParts = new Part[moe.GetSize()];

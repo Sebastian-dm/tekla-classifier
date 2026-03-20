@@ -15,7 +15,7 @@ using static Tekla.Structures.Filtering.Categories.PartFilterExpressions;
 using static Tekla.Structures.Model.Beam;
 
 
-namespace CCI {
+namespace TeklaClassifier {
 
 
     public interface IClassifier {
@@ -33,8 +33,8 @@ namespace CCI {
         const string UDA_TopNode = "CCITopNode";
         const string UDA_TypeID = "CCITypeID";
 
-        Dictionary<string, List<string>> CCIdatabase;
-        Dictionary<string, List<string>> CCImapping;
+        private readonly Dictionary<string, List<string>> _database;
+        private readonly Dictionary<string, List<string>> _mapping;
 
         const int RunningNumberDigits = 3;
         const int StartNumber = 1;
@@ -42,8 +42,8 @@ namespace CCI {
         private bool ignoreDuplicateClassWarning = false;
 
         public Classifier(string mappingFilePath, string databaseFilePath) {
-            CCIdatabase = ReadDictionaryFromCSV(Program.cciForm.DatabasefilePath);
-            CCImapping = ReadDictionaryFromCSV(Program.cciForm.MappingfilePath);
+            _database = ReadDictionaryFromCSV(Program.ClassificationForm.DatabasefilePath);
+            _mapping = ReadDictionaryFromCSV(Program.ClassificationForm.MappingfilePath);
         }
 
 
@@ -73,17 +73,6 @@ namespace CCI {
 
         }
 
-
-        public void ClassifySelection() {
-            var selectionHelper = new SelectionHelper();
-            Classify(selectionHelper.GetSelectedParts());
-        }
-
-        public void ClassifyAll() {
-            var selectionHelper = new SelectionHelper();
-            Classify(selectionHelper.GetAllParts());
-        }
-
         public void Classify(List<Part> parts) {
             int i = 1;
             foreach (Part part in parts) {
@@ -102,17 +91,8 @@ namespace CCI {
             Output.Status($"Finished classifying {parts.Count()} parts.");
         }
 
-        public void DeleteCCIUDAFromSelection() {
-            var selectionHelper = new SelectionHelper();
-            DeleteCCIUDAValues(selectionHelper.GetSelectedParts());
-        }
 
-        public void DeleteCCIUDAFromAll() {
-            var selectionHelper = new SelectionHelper();
-            DeleteCCIUDAValues(selectionHelper.GetAllParts());
-        }
-
-        public void DeleteCCIUDAValues(List<Part> parts) {
+        public void DeleteClassificationUDAValues(List<Part> parts) {
             int i = 1;
             foreach (ModelObject part in parts) {
                 if (i % 10 == 0)
@@ -130,41 +110,41 @@ namespace CCI {
             return partName + "_" + partProfile;
         }
 
-        private string GenerateCCIClass(string partName) {
-            if (!CCImapping.ContainsKey(partName)) {
+        private string GenerateClassificationClass(string partName) {
+            if (!_mapping.ContainsKey(partName)) {
                 Output.Log("No mapping for name: " + partName);
                 return "N/A";
             }
-            return CCImapping[partName][1];
+            return _mapping[partName][1];
         }
 
-        private int GenerateCCITypeNumber(string CCIClass, string dataBaseID) {
+        private int GenerateClassificationTypeNumber(string ClassificationClass, string dataBaseID) {
 
             // Check if database already contains CCICode
-            var matchingCCIClasses = CCIdatabase.Keys.Where(key => key.StartsWith(CCIClass));
+            var matchingCCIClasses = _database.Keys.Where(key => key.StartsWith(ClassificationClass));
             if (matchingCCIClasses.Count() == 0)
                 return StartNumber;
 
 
             // Check if the matching CCIcodes also match databaseID
             foreach (var matchingCCIClass in matchingCCIClasses) {
-                if (CCIdatabase[matchingCCIClass][0] == dataBaseID)
-                    return int.Parse(CCIdatabase[matchingCCIClass][3]);
+                if (_database[matchingCCIClass][0] == dataBaseID)
+                    return int.Parse(_database[matchingCCIClass][3]);
             }
 
             // Create next number
-            var lastMatchingClassCode = CCIdatabase.Keys.Where(key => key.StartsWith(CCIClass)).OrderBy(key => key).Last();
+            var lastMatchingClassCode = _database.Keys.Where(key => key.StartsWith(ClassificationClass)).OrderBy(key => key).Last();
             int lastMatchingNumber = int.Parse(lastMatchingClassCode.Split('.').Last());
             return lastMatchingNumber + 1;
         }
 
 
         private string GenerateCCITypeName(string partName, string partProfile) {
-            if (!CCImapping.ContainsKey(partName)) {
+            if (!_mapping.ContainsKey(partName)) {
                 Output.Log("No mapping for name: " + partName);
                 return "";
             }
-            return CCImapping[partName][0] + " " + partProfile;
+            return _mapping[partName][0] + " " + partProfile;
         }
 
 
@@ -217,8 +197,8 @@ namespace CCI {
             string dataBaseID = GenerateDataBaseId(name, profile);
 
             // Create CCI type ID name eg. ULF.002
-            string CCIClassCode = GenerateCCIClass(name);
-            string CCITypeNumber = GenerateCCITypeNumber(CCIClassCode, dataBaseID).ToString("D" + RunningNumberDigits.ToString());
+            string CCIClassCode = GenerateClassificationClass(name);
+            string CCITypeNumber = GenerateClassificationTypeNumber(CCIClassCode, dataBaseID).ToString("D" + RunningNumberDigits.ToString());
             string CCITypeID = CCIClassCode + "." + CCITypeNumber;
 
             string TypeName = GenerateCCITypeName(name, profile);
@@ -230,14 +210,14 @@ namespace CCI {
             part.SetUserProperty(UDA_TypeName, TypeName);
 
             // Update database
-            if (!CCIdatabase.ContainsKey(CCITypeID) && CCIClassCode != "N/A") {
-                CCIdatabase.Add(CCITypeID, new List<string>() { dataBaseID, name, profile, CCITypeNumber });
+            if (!_database.ContainsKey(CCITypeID) && CCIClassCode != "N/A") {
+                _database.Add(CCITypeID, new List<string>() { dataBaseID, name, profile, CCITypeNumber });
                 AddLineToDatabaseFile($"{CCITypeID}, {dataBaseID}, {name}, {profile}, {CCITypeNumber}");
             }
         }
 
         private void AddLineToDatabaseFile(string line) {
-            using (StreamWriter writer = new StreamWriter(Program.cciForm.DatabasefilePath, true)) {
+            using (StreamWriter writer = new StreamWriter(Program.ClassificationForm.DatabasefilePath, true)) {
                 writer.WriteLine(line);
             }
         }

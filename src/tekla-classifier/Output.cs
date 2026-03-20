@@ -7,12 +7,12 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace CCI {
+namespace TeklaClassifier {
     internal static class Output {
 
         public static void Status(string txt) {
 			try {
-                Program.cciForm.SetStatus(txt);
+                Program.ClassificationForm.SetStatus(txt);
             }
 			catch (Exception) {
 			}              

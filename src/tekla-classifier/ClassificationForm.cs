@@ -1,29 +1,40 @@
-﻿using System.Windows.Forms;
+﻿using System;
+using System.Windows.Forms;
+using Tekla.Structures.Model;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
-namespace CCI {
-    public partial class CCIForm : Form {
+namespace TeklaClassifier {
+    public partial class ClassificationForm : Form {
 
         public string DatabasefilePath {  get => textBox_PathDatabase.Text; }
         public string MappingfilePath { get => textBox_PathMapping.Text; }
 
+        private readonly Model _model;
+
         public IClassifier ClassifierInstance { get; set; }
 
-        public CCIForm() {
+        public ClassificationForm() {
             InitializeComponent();
+
+            _model = new Model();
+            if (_model.GetConnectionStatus())
+                Output.Log("Connected to Tekla successfully");
+            else
+                Output.Error("Unable to find Tekla");
+
         }
 
-        private void OnLoad(object sender, System.EventArgs e) {
+        private void OnLoad(object sender, EventArgs e) {
             SetDefaultPaths();
         }
 
         private void SetDefaultPaths() {
             try {
-                string modelFolder = Program.TeklaModel.GetInfo().ModelPath;
-                textBox_PathDatabase.Text = modelFolder + "\\CCI\\CCI_database.csv";
-                textBox_PathMapping.Text = modelFolder + "\\CCI\\CCI_mapping.csv";
+                string modelFolder = _model.GetInfo().ModelPath;
+                textBox_PathDatabase.Text = modelFolder + "\\Classification\\database.csv";
+                textBox_PathMapping.Text = modelFolder + "\\Classification\\mapping.csv";
             }
-            catch (System.Exception ex) {
+            catch (Exception ex) {
                 Output.Error(ex.ToString());
             }
             
@@ -39,18 +50,20 @@ namespace CCI {
             button_ClassifyAll.Enabled = true;
         }
 
-        private void button_ClassifySelected_Click(object sender, System.EventArgs e) {
+        private void button_ClassifySelected_Click(object sender, EventArgs e) {
             LockInput();
 
             var classifier = new Classifier(MappingfilePath, DatabasefilePath);
-            classifier.ClassifySelection();
+            var selectionHelper = new SelectionHelper();
+            classifier.Classify(selectionHelper.GetSelectedParts());
             UnlockInput();
         }
 
-        private void button_ClassifyAll_Click(object sender, System.EventArgs e) {
+        private void button_ClassifyAll_Click(object sender, EventArgs e) {
             LockInput();
             var classifier = new Classifier(MappingfilePath, DatabasefilePath);
-            classifier.ClassifyAll();
+            var selectionHelper = new SelectionHelper();
+            classifier.Classify(selectionHelper.GetAllParts(_model));
             UnlockInput();
         }
 
@@ -61,9 +74,9 @@ namespace CCI {
         }
 
 
-        private void button_ExplorerPathMapping_Click(object sender, System.EventArgs e) {
+        private void button_ExplorerPathMapping_Click(object sender, EventArgs e) {
             OpenFileDialog openFileDialog1 = new OpenFileDialog {
-                InitialDirectory = Program.TeklaModel.GetInfo().ModelPath,
+                InitialDirectory = _model.GetInfo().ModelPath,
                 Title = "Choose mapping file",
 
                 CheckFileExists = true,
@@ -79,9 +92,9 @@ namespace CCI {
             }
         }
 
-        private void button_ExplorerPathDatabase_Click(object sender, System.EventArgs e) {
+        private void button_ExplorerPathDatabase_Click(object sender, EventArgs e) {
             OpenFileDialog openFileDialog1 = new OpenFileDialog {
-                InitialDirectory = Program.TeklaModel.GetInfo().ModelPath,
+                InitialDirectory = _model.GetInfo().ModelPath,
                 Title = "Choose database file",
 
                 CheckFileExists = true,
@@ -97,23 +110,25 @@ namespace CCI {
             }
         }
 
-        private void button_DeleteSelectedUDA_Click(object sender, System.EventArgs e) {
+        private void button_DeleteSelectedUDA_Click(object sender, EventArgs e) {
             var confirmResult = MessageBox.Show("Are you sure to delete CCI UDA values for selected parts?",
                                      "Confirmation",
                                      MessageBoxButtons.YesNo);
             if (confirmResult == DialogResult.Yes) {
                 var classifier = new Classifier(MappingfilePath, DatabasefilePath);
-                classifier.DeleteCCIUDAFromSelection();
+                var selectionHelper = new SelectionHelper();
+                classifier.DeleteClassificationUDAValues(selectionHelper.GetSelectedParts());
             }
         }
 
-        private void button_DeleteAllUDA_Click(object sender, System.EventArgs e) {
+        private void button_DeleteAllUDA_Click(object sender, EventArgs e) {
             var confirmResult = MessageBox.Show("Are you sure to delete CCI UDA values for ALL parts?",
                                      "Confirmation",
                                      MessageBoxButtons.YesNo);
             if (confirmResult == DialogResult.Yes) {
                 var classifier = new Classifier(MappingfilePath, DatabasefilePath);
-                classifier.DeleteCCIUDAFromAll();
+                var selectionHelper = new SelectionHelper();
+                classifier.DeleteClassificationUDAValues(selectionHelper.GetAllParts(_model));
             }
         }
     }

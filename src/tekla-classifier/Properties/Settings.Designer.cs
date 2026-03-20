@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-namespace CCI.Properties
+namespace TeklaClassifier.Properties
 {
 
 
