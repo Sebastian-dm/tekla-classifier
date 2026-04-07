@@ -88,47 +88,46 @@ namespace TeklaClassifier {
         }
 
         public static void AddEntryToDatabaseFile(string filePath, string key, List<string> headers, Dictionary<string, string> values) {
-            var row = new List<string>();
-            row.Add(key);
+            var row = new List<string>() { key };
 
             for (int i = 1; i < headers.Count; i++) {
-                var header = headers[i];
 
-                if (values.TryGetValue(header, out var value))
+                if (values.TryGetValue(headers[i], out var value))
                     row.Add(value);
                 else
                     row.Add(""); // missing value
             }
 
-            using (StreamWriter writer = new StreamWriter(Program.ClassificationForm.DatabasefilePath, true)) {
+            using (StreamWriter writer = new StreamWriter(filePath, true)) {
                 writer.WriteLine(string.Join(",", row));
             }
         }
 
-        private static Dictionary<string, List<string>> ReadDictionaryFromCSVOld(string filePath, bool ignoreDuplicateClassWarning = false) {
-            var dataDict = new Dictionary<string, List<string>>();
-            using (StreamReader reader = new StreamReader(filePath)) {
-                string line;
-                while ((line = reader.ReadLine()) != null) {
-                    string[] parts = line.Split(',', '"').Select(s => s.Trim()).ToArray();
-                    string key = parts[0];
-                    var values = new List<string>();
-                    for (int i = 1; i < parts.Length; i++)
-                        values.Add(parts[i]);
+        public static void SortCsvFile(string filePath, int sortColumnIndex = 0, bool hasHeader = true) {
+            if (!File.Exists(filePath))
+                return;
 
-                    if (dataDict.Keys.Contains(key)) {
-                        if (ignoreDuplicateClassWarning) break;
-                        var result = MessageBox.Show($"Database contains multiple definitions for class: {key}.\nThe first definition will be used and subsequent are ignored.\n\nClose with Cancel/Annuller to ignore similar messages.", "Duplicate class definition", MessageBoxButtons.OKCancel);
-                        if (result == DialogResult.Cancel) {
-                            ignoreDuplicateClassWarning = true;
-                        }
-                    }
-                    else
-                        dataDict.Add(key, values);
-                }
+            string header = null;
+            var lines = File.ReadAllLines(filePath).ToList();
+
+            if (lines.Count == 0)
+                return;
+
+            if (hasHeader) {
+                header = lines[0];
+                lines = lines.Skip(1).ToList();
             }
-            return dataDict;
 
+            var sorted = lines
+                .Select(l => l.Split(','))
+                .OrderBy(cols => cols[sortColumnIndex])
+                .Select(cols => string.Join(",", cols))
+                .ToList();
+
+            if (hasHeader)
+                sorted.Insert(0, header);
+
+            File.WriteAllLines(filePath, sorted);
         }
     }
 }

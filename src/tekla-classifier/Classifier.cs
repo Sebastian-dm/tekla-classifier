@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net.Mime;
 using System.Reflection;
 using System.Runtime.InteropServices.ComTypes;
+using System.Text;
 using System.Windows.Forms;
 using Tekla.Structures.Model;
 using Tekla.Structures.ModelInternal;
@@ -66,12 +67,13 @@ namespace TeklaClassifier {
                 // Go to next part if there is already a class code
                 string classCodeUDA = string.Empty;
                 part.GetUserProperty(UDA_ClassCode, ref classCodeUDA);
-                if (classCodeUDA != string.Empty)
+                if (classCodeUDA == string.Empty)
                     continue;
                 
-                Classify(part);
+                ClassifyPart(part);
                 i++;
             }
+            CsvReader.SortCsvFile(_databaseFilePath);
             Output.Status($"Finished classifying {parts.Count()} parts.");
         }
 
@@ -91,11 +93,62 @@ namespace TeklaClassifier {
             Output.Status($"Finished removing classification UDAs on {parts.Count()} parts.");
         }
 
-        private string GenerateDataBaseId(string partName, string partProfile) {
-            return partName + "_" + partProfile;
+        public void ClassifyPart(Part part) {
+
+            string matchString = GenerateMatchString(part, udas: GetClassificationUdas(part));
+            string classcode = GenerateClassCode(part);
+            string typecode = GenerateTypeCode(classcode, matchString, typePrefix:GetPartName(part)); 
+            string classTypecode = classcode + ClassTypeSeparator + typecode;
+            string typeDescription = GenerateTypeDescription(part);
+
+            // Set properties and update database
+            if (UDA_Constant != "") part.SetUserProperty(UDA_Constant, ConstantValue);
+            if (UDA_ClassCode != "") part.SetUserProperty(UDA_ClassCode, ClassCodePrefix + classcode);
+            if (UDA_TypeCode != "") part.SetUserProperty(UDA_TypeCode, TypeCodePrefix + typecode);
+            if (UDA_ClassTypeCode != "") part.SetUserProperty(UDA_ClassTypeCode, ClassTypeCodePrefix + classTypecode);
+            if (UDA_TypeDescription != "") part.SetUserProperty(UDA_TypeDescription, typeDescription);
+
+            // Update database
+            if (!_database.ContainsKey(classTypecode) && classcode != "N/A") {
+                var newEntry = new Dictionary<string, string> {
+                        { "ClassTypeCode", classTypecode},
+                        { "MatchString", matchString },
+                        { "Description", typeDescription },
+                    };
+                _database.Add(classTypecode, newEntry);
+                CsvReader.AddEntryToDatabaseFile(_databaseFilePath, classTypecode, _databaseHeaders, newEntry);
+            }
         }
 
-        private string GenerateClasscode(string partName) {
+        private List<string> GetClassificationUdas(Part part) {
+            if (!_mapping.ContainsKey(part.Name))
+                return new List<string>();
+            List<string> udas = new List<string>();
+            foreach (var key in _mapping[part.Name].Keys) {
+                if (key.StartsWith("UDA:"))
+                    udas.Add(_mapping[part.Name][key].Replace("UDA:",""));
+            }
+            return udas;
+        }
+
+        private string GenerateMatchString(Part part, List<string> udas = null) {
+
+            StringBuilder matchCode = new StringBuilder(GetPartName(part));
+
+            foreach (string uda in udas) {
+                string udaValue = string.Empty;
+                part.GetUserProperty(uda, ref udaValue);
+
+                if (udaValue != string.Empty)
+                    matchCode.Append("_" + udaValue);
+            }
+            matchCode.Append("_" + GetPartProfile(part));
+
+            return matchCode.ToString();
+        }
+
+        private string GenerateClassCode(Part part) {
+            string partName = GetPartName(part);
             if (!_mapping.ContainsKey(partName)) {
                 Output.Log("No mapping for name: " + partName);
                 return "N/A";
@@ -103,7 +156,13 @@ namespace TeklaClassifier {
             return _mapping[partName]["ClassCode"];
         }
 
-        private int GenerateTypeNumber(string classCode, string teklaMatchString, string typePrefix = "") {
+        private string GenerateTypeCode(string classCode, string matchString, string typePrefix = "") {
+            int typeNumber = GenerateTypeNumber(classCode, matchString, typePrefix);
+            return typePrefix + typeNumber.ToString("D" + RunningNumberDigits.ToString());
+        }
+
+
+        private int GenerateTypeNumber(string classCode, string matchString, string typePrefix = "") {
 
             // Check if database already contains Class
             var matchingDatabaseEntries = _database.Keys.Where(key => key.StartsWith(classCode));
@@ -112,7 +171,7 @@ namespace TeklaClassifier {
 
             // Check if the matching Classes also match Type, and if so return the same number
             foreach (var entry in matchingDatabaseEntries) {
-                if (_database[entry]["TeklaMatchString"] == teklaMatchString)
+                if (_database[entry]["MatchString"] == matchString)
                         return int.Parse(entry.Substring(entry.Length - RunningNumberDigits));
             }
 
@@ -123,7 +182,10 @@ namespace TeklaClassifier {
         }
 
 
-        private string GenerateTypeDescription(string partName, string partProfile) {
+        private string GenerateTypeDescription(Part part) {
+            string partName = GetPartName(part);
+            string partProfile = GetPartProfile(part);
+
             if (!_mapping.ContainsKey(partName)) {
                 Output.Log("No mapping for name: " + partName);
                 return "";
@@ -170,62 +232,9 @@ namespace TeklaClassifier {
             if (UseThicknessAsProfile(part)) {
                 string[] sizes = profile.Split('*');
                 Array.Sort(sizes);
-                return sizes[0];
+                return "t"+sizes[0];
             }
             return profile;
-        }
-
-
-        public void Classify(Part part) {
-            
-            string name = GetPartName(part);
-            string profile = GetPartProfile(part);
-            string typePrefix = name;
-
-            // Create databaseID eg. BE_KB90/110
-            string dataBaseID = GenerateDataBaseId(name, profile);
-
-            // Create CCI type ID name eg. ULF.002
-            string classcode = GenerateClasscode(name);
-            string typecode = typePrefix + GenerateTypeNumber(classcode, dataBaseID, typePrefix).ToString("D" + RunningNumberDigits.ToString());
-            string classTypecode = classcode + ClassTypeSeparator + typecode;
-
-            string typeDescription = GenerateTypeDescription(name, profile);
-
-            // Set properties and update database
-            if (UDA_Constant != "") part.SetUserProperty(UDA_Constant, ConstantValue);
-            if (UDA_ClassCode != "") part.SetUserProperty(UDA_ClassCode, ClassCodePrefix + classcode);
-            if (UDA_TypeCode != "") part.SetUserProperty(UDA_TypeCode, TypeCodePrefix + typecode);
-            if (UDA_ClassTypeCode != "") part.SetUserProperty(UDA_ClassTypeCode, ClassTypeCodePrefix + classTypecode);
-            if (UDA_TypeDescription != "") part.SetUserProperty(UDA_TypeDescription, typeDescription);
-
-            // Update database
-            if (!_database.ContainsKey(classTypecode) && classcode != "N/A") {
-                var newEntry = new Dictionary<string, string> {
-                        { "TeklaMatchString", dataBaseID },
-                        { "Description", typeDescription },
-                    };
-                _database.Add(classTypecode, newEntry);
-                CsvReader.AddEntryToDatabaseFile(_databaseFilePath, classTypecode, _databaseHeaders, newEntry);
-            }
-        }
-
-        private Hashtable GetReportProperties(ModelObject mo) {
-            ArrayList sNames = new ArrayList() {
-                "NAME", "PROFILE", "OBJECT_TYPE", "MATERIAL_TYPE",
-                "PROFILE_TYPE", "TYPENAME", "CONTENTTYPE",
-                "TYPE", "TYPE1", "TYPE2", "TYPE3", "TYPE4",
-            };
-            ArrayList dNames = new ArrayList() {
-                "SUBTYPE"
-            };
-            ArrayList iNames = new ArrayList() {
-                "TYPENUMBER", "GROUP_TYPE", "DATE"
-            };
-            Hashtable values = new Hashtable(sNames.Count + dNames.Count + iNames.Count);
-            mo.GetAllReportProperties(sNames, dNames, iNames, ref values);
-            
-            return values;
         }
     }
 }
