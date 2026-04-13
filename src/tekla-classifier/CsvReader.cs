@@ -31,6 +31,77 @@ namespace TeklaClassifier {
             }
         }
 
+        public static Dictionary<string, List<Dictionary<string, string>>> ReadDictionaryFromCSVvariable( string filePath,
+    bool ignoreDuplicateRowWarning = false) {
+            var result = new Dictionary<string, List<Dictionary<string, string>>>();
+
+            using (var reader = new StreamReader(filePath)) {
+                var headerLine = reader.ReadLine();
+                if (headerLine == null)
+                    return result;
+
+                var headers = headerLine
+                    .Split(',')
+                    .Select(h => h.Trim())
+                    .ToArray();
+
+                string line;
+                while ((line = reader.ReadLine()) != null) {
+                    var parts = line
+                        .Split(',')
+                        .Select(p => p.Trim())
+                        .ToArray();
+
+                    if (parts.Length == 0 || string.IsNullOrWhiteSpace(parts[0]))
+                        continue;
+
+                    string outerKey = parts[0];
+
+                    var rowDict = new Dictionary<string, string>();
+
+                    for (int i = 0; i < headers.Length; i++) {
+                        string value = i < parts.Length ? parts[i] : string.Empty;
+                        rowDict[headers[i]] = value;
+                    }
+
+                    if (!result.TryGetValue(outerKey, out var list)) {
+                        list = new List<Dictionary<string, string>>();
+                        result[outerKey] = list;
+                    }
+
+                    bool duplicateRow = list.Any(existing =>
+                        headers.All(header => {
+                            existing.TryGetValue(header, out var existingValue);
+                            rowDict.TryGetValue(header, out var newValue);
+
+                            return (existingValue ?? string.Empty) == (newValue ?? string.Empty);
+                        }));
+
+                    if (duplicateRow) {
+                        if (ignoreDuplicateRowWarning)
+                            continue;
+
+                        var dialog = MessageBox.Show(
+                            $"Database contains a duplicate row for class: {outerKey}.\n" +
+                            "The duplicate row will be ignored.\n\n" +
+                            "Close with Cancel to ignore similar messages.",
+                            "Duplicate row definition",
+                            MessageBoxButtons.OKCancel
+                        );
+
+                        if (dialog == DialogResult.Cancel)
+                            ignoreDuplicateRowWarning = true;
+
+                        continue;
+                    }
+
+                    list.Add(rowDict);
+                }
+            }
+
+            return result;
+        }
+
         public static Dictionary<string, Dictionary<string, string>> ReadDictionaryFromCSV(string filePath, bool ignoreDuplicateClassWarning = false) {
             var result = new Dictionary<string, Dictionary<string, string>>();
 
@@ -46,7 +117,7 @@ namespace TeklaClassifier {
                     .ToArray();
 
                 string line;
-                while ((line = reader.ReadLine()) != null) {
+                while ((line = reader.ReadLine()) != null && line.Trim() != "") {
                     var parts = line
                         .Split(',')
                         .Select(p => p.Trim())
@@ -103,7 +174,7 @@ namespace TeklaClassifier {
             }
         }
 
-        public static void SortCsvFile(string filePath, int sortColumnIndex = 0, bool hasHeader = true) {
+        public static void SortCsvFile(string filePath, int sortColPrime = 1, int sortColSecond = 2, bool hasHeader = true) {
             if (!File.Exists(filePath))
                 return;
 
@@ -120,7 +191,8 @@ namespace TeklaClassifier {
 
             var sorted = lines
                 .Select(l => l.Split(','))
-                .OrderBy(cols => cols[sortColumnIndex])
+                .OrderBy(cols => cols[sortColPrime])
+                .ThenBy(cols => cols[sortColSecond])
                 .Select(cols => string.Join(",", cols))
                 .ToList();
 
