@@ -124,6 +124,10 @@ namespace TeklaClassifier {
                 partData.Add(uda.Key, uda.Value);
                 databaseKey += "_" + uda.Value;
             }
+            foreach (var od in GetOutputData(part)) {
+                partData.Add(od.Key, od.Value);
+            }
+
             databaseKey += "_" + partProfile;
 
             partData.Add("DatabaseKey", databaseKey);
@@ -170,15 +174,21 @@ namespace TeklaClassifier {
 
 
         public void UpdateDatabase(Dictionary<string, string> partData) {
-            if (!_database.ContainsKey(partData["DatabaseKey"]) && partData["ClassCode"] != "N/A") {
-                var newEntry = new Dictionary<string, string> {
-                                { "ClassCode", partData["ClassCode"]},
-                                { "TypeCode", partData["TypeCode"] },
-                                { "TypeDescription", partData["TypeDescription"] },
-                            };
-                _database.Add(partData["DatabaseKey"], newEntry);
-                CsvReader.AddEntryToDatabaseFile(_databaseFilePath, partData["DatabaseKey"], _databaseHeaders, newEntry);
-            }
+            if (_database.ContainsKey(partData["DatabaseKey"]) || partData["ClassCode"] == "N/A")
+                return;
+
+            // Set up new database entry
+            var newEntry = new Dictionary<string, string> {
+                            { "ClassCode", partData["ClassCode"]},
+                            { "TypeCode", partData["TypeCode"] },
+                            { "TypeDescription", partData["TypeDescription"] },
+                        };
+            List<string> additionalKeys = partData.Keys.Where(k => k.StartsWith("OUT:")).ToList();
+            additionalKeys.ForEach(k => newEntry.Add(k.Replace("OUT:",""), partData[k]));
+
+            // Add to database and file
+            _database.Add(partData["DatabaseKey"], newEntry);
+            CsvReader.AddEntryToDatabaseFile(_databaseFilePath, partData["DatabaseKey"], _databaseHeaders, newEntry);
         }
 
 
@@ -196,6 +206,20 @@ namespace TeklaClassifier {
                 }
             }
             return udas;
+        }
+
+        private Dictionary<string, string> GetOutputData(Part part) {
+            var outputData = new Dictionary<string, string>();
+
+            if (!_mapping.ContainsKey(part.Name))
+                return outputData;
+            
+            foreach (var key in _mapping[part.Name].Keys) {
+                if (key.StartsWith("OUT:")) {
+                    outputData.Add(key, _mapping[part.Name][key]);
+                }
+            }
+            return outputData;
         }
 
 
